@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>CartPay - Tablet del Carrito</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root {
+    --verde: #1a8f4c;
+    --verde-oscuro: #0f5c30;
+    --fondo: #0d1117;
+    --panel: #161b22;
+    --texto: #e6edf3;
+    --texto-suave: #8b949e;
+    --rojo: #d9534f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background: var(--fondo);
+    color: var(--texto);
+  }
+  .tablet {
+    max-width: 480px;
+    margin: 20px auto;
+    background: var(--panel);
+    border-radius: 24px;
+    border: 6px solid #000;
+    padding: 20px;
+    min-height: 720px;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  header h1 {
+    font-size: 20px;
+    margin: 0;
+    color: var(--verde);
+  }
+  .badge {
+    background: var(--verde);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+  }
+  input[type=text] {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid #30363d;
+    background: #0d1117;
+    color: var(--texto);
+    font-size: 15px;
+    margin-bottom: 10px;
+  }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .btn-primario { background: var(--verde); color: white; width: 100%; }
+  .btn-primario:hover { background: var(--verde-oscuro); }
+  .btn-secundario { background: #30363d; color: var(--texto); }
+  .fila { display: flex; gap: 8px; margin-bottom: 10px; }
+  .fila > * { flex: 1; }
+  .lista-resultados, .lista-carrito {
+    max-height: 180px;
+    overflow-y: auto;
+    margin-bottom: 12px;
+  }
+  .item-producto {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    padding: 10px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+  }
+  .item-producto small { color: var(--texto-suave); display:block; }
+  .item-producto button { background: var(--rojo); color: white; padding: 4px 10px; font-size: 12px; }
+  .panel-total {
+    background: #0d1117;
+    border: 1px solid var(--verde);
+    border-radius: 12px;
+    padding: 14px;
+    margin: 14px 0;
+    text-align: center;
+  }
+  .panel-total .monto { font-size: 32px; font-weight: 700; color: var(--verde); }
+  .panel-peso { font-size: 12px; color: var(--texto-suave); margin-top: 6px; }
+  .voz {
+    background: #0d1117;
+    border: 1px dashed var(--verde);
+    padding: 10px;
+    border-radius: 10px;
+    font-size: 13px;
+    margin-bottom: 10px;
+    color: var(--texto-suave);
+  }
+  .pantalla { display: none; }
+  .pantalla.activa { display: block; }
+  .resultado-alerta {
+    background: rgba(217,83,79,0.15);
+    border: 1px solid var(--rojo);
+    color: #ff8b87;
+    padding: 14px;
+    border-radius: 12px;
+    text-align: center;
+    font-weight: 600;
+  }
+  .resultado-ok {
+    background: rgba(26,143,76,0.15);
+    border: 1px solid var(--verde);
+    color: #7ee2a8;
+    padding: 14px;
+    border-radius: 12px;
+    text-align: center;
+    font-weight: 600;
+  }
+  #qrcode { display: flex; justify-content: center; margin: 14px 0; }
+  .config {
+    font-size: 11px;
+    color: var(--texto-suave);
+    text-align: center;
+    margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+
+<div class="tablet">
+  <header>
+    <h1>🛒 CartPay</h1>
+    <span class="badge" id="estadoCarrito">Sin iniciar</span>
+  </header>
+
+  <!-- PANTALLA 0: iniciar carrito -->
+  <div class="pantalla activa" id="pantalla-inicio">
+    <p>Bienvenido/a. Retira el carrito para comenzar tu compra.</p>
+    <button class="btn-primario" onclick="iniciarCarrito()">Iniciar carrito</button>
+  </div>
+
+  <!-- PANTALLA 1: compra -->
+  <div class="pantalla" id="pantalla-compra">
+    <input type="text" id="buscador" placeholder="Buscar producto (ej: leche, arroz)">
+    <div class="lista-resultados" id="resultadosBusqueda"></div>
+
+    <div class="voz" id="cajaVoz">🔊 Indicaciones por voz aparecerán aquí.</div>
+
+    <button class="btn-primario" id="btnCamara" onclick="toggleCamara()">📷 Escanear con cámara</button>
+    <div id="lector-camara" style="width:100%;margin:10px 0;border-radius:10px;overflow:hidden;display:none;"></div>
+
+    <div class="fila">
+      <input type="text" id="codigoManual" placeholder="O escribe el código manualmente">
+      <button class="btn-secundario" onclick="escanearCodigo()">Agregar</button>
+    </div>
+
+    <h3 style="margin-bottom:6px;font-size:14px;color:var(--texto-suave)">Productos en el carro</h3>
+    <div class="lista-carrito" id="listaCarrito"></div>
+
+    <div class="panel-total">
+      <div class="monto" id="totalCarrito">$0</div>
+      <div class="panel-peso" id="pesoInfo">Peso esperado: 0.0 kg | Peso celdas: 0.0 kg</div>
+    </div>
+
+    <button class="btn-primario" onclick="irAPago()">Pagar ahora</button>
+  </div>
+
+  <!-- PANTALLA 2: pago -->
+  <div class="pantalla" id="pantalla-pago">
+    <h3>Total a pagar: <span id="totalPago">$0</span></h3>
+    <div class="fila">
+      <button class="btn-secundario" onclick="pagar('tarjeta')">💳 Tarjeta</button>
+      <button class="btn-secundario" onclick="pagar('celular')">📱 Celular</button>
+    </div>
+    <button class="btn-secundario" style="width:100%;margin-top:10px" onclick="volverACompra()">Volver a comprar</button>
+  </div>
+
+  <!-- PANTALLA 3: boleta -->
+  <div class="pantalla" id="pantalla-boleta">
+    <h3 style="text-align:center">✅ Pago aprobado</h3>
+    <div id="qrcode"></div>
+    <p style="text-align:center;font-size:13px;color:var(--texto-suave)" id="codigoBoletaTexto"></p>
+    <button class="btn-primario" onclick="irASalida()">Ir al pórtico de salida</button>
+  </div>
+
+<!-- PANTALLA 4: salida -->
+  <div class="pantalla" id="pantalla-salida">
+    <h3 style="text-align:center">Pórtico de salida - Doble pesaje</h3>
+    <p style="text-align:center;font-size:13px;color:var(--texto-suave)">Simulando pesaje en la plataforma de salida...</p>
+    <button class="btn-primario" onclick="validarSalida()">Medir peso y validar</button>
+
+    <div style="margin-top:16px;padding-top:14px;border-top:1px dashed #30363d;">
+      <p style="font-size:11px;color:var(--texto-suave);text-align:center;margin-bottom:8px;">
+        Solo para la demo: simula que metiste un producto extra al carro
+        DESPUÉS de pagar (sin pagarlo), para provocar la alerta de peso.
+      </p>
+      <button class="btn-secundario" style="width:100%" onclick="agregarProductoSinPagar()">
+        ⚠️ Simular producto no pagado
+      </button>
+    <div id="resultadoSalida" style="margin-top:14px;"></div>
+    <button class="btn-secundario" style="width:100%;margin-top:14px" onclick="reiniciar()">Nueva compra (reiniciar demo)</button>
+  </div>
+
+  <div class="config">
+    Backend: <span id="urlBackend">http://127.0.0.1:8000</span>
+  </div>
+</div>
+
+<script>
+const API = "http://127.0.0.1:8000";
+let carritoId = null;
+let ultimoTotal = 0;
+
+function mostrarPantalla(id) {
+  document.querySelectorAll(".pantalla").forEach(p => p.classList.remove("activa"));
+  document.getElementById(id).classList.add("activa");
+}
+
+function hablar(texto) {
+  document.getElementById("cajaVoz").innerText = "🔊 " + texto;
+  if ("speechSynthesis" in window) {
+    const u = new SpeechSynthesisUtterance(texto);
+    u.lang = "es-CL";
+    window.speechSynthesis.speak(u);
+  }
+}
+
+async function iniciarCarrito() {
+  const r = await fetch(`${API}/carrito/nuevo`, { method: "POST" });
+  const data = await r.json();
+  carritoId = data.carrito_id;
+  document.getElementById("estadoCarrito").innerText = "Carro #" + carritoId;
+  mostrarPantalla("pantalla-compra");
+  hablar("Carrito activado. Puedes buscar productos o escanearlos al meterlos al carro.");
+}
+
+document.getElementById("buscador").addEventListener("input", async (e) => {
+  const q = e.target.value.trim();
+  const cont = document.getElementById("resultadosBusqueda");
+  if (!q) { cont.innerHTML = ""; return; }
+  const r = await fetch(`${API}/productos?q=${encodeURIComponent(q)}`);
+  const productos = await r.json();
+  cont.innerHTML = "";
+  productos.forEach(p => {
+    const div = document.createElement("div");
+    div.className = "item-producto";
+    div.innerHTML = `<div><b>${p.nombre}</b><small>$${p.precio} · ${p.pasillo}</small></div>
+      <button onclick="consultarYGuiar('${p.codigo}')">Ver</button>`;
+    cont.appendChild(div);
+  });
+});
+
+async function consultarYGuiar(codigo) {
+  const r = await fetch(`${API}/productos/${codigo}`);
+  const p = await r.json();
+  hablar(`${p.nombre} cuesta $${p.precio}. Dirígete a ${p.pasillo}.`);
+  document.getElementById("codigoManual").value = codigo;
+}
+
+async function escanearCodigo() {
+  const codigo = document.getElementById("codigoManual").value.trim();
+  if (!codigo) return;
+  await procesarCodigoEscaneado(codigo);
+}
+
+async function procesarCodigoEscaneado(codigo) {
+  const r = await fetch(`${API}/carrito/escanear`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ carrito_id: carritoId, codigo })
+  });
+  if (!r.ok) {
+    const err = await r.json();
+    hablar("Error: " + err.detail);
+    return;
+  }
+  const data = await r.json();
+  actualizarCarritoUI(data);
+  hablar(`${data.producto.nombre} agregado. Total: $${data.total}.`);
+  document.getElementById("codigoManual").value = "";
+  cargarListaCarrito();
+}
+
+// ---------------------------------------------------------------------
+// LECTURA REAL DE CÁMARA (QR / código de barras) con html5-qrcode
+// ---------------------------------------------------------------------
+let lectorCamara = null;
+let camaraActiva = false;
+let ultimoCodigoLeido = "";
+let ultimaLecturaTiempo = 0;
+
+async function toggleCamara() {
+  const btn = document.getElementById("btnCamara");
+  const contenedor = document.getElementById("lector-camara");
+
+  if (camaraActiva) {
+    // Detener cámara
+    try { await lectorCamara.stop(); await lectorCamara.clear(); } catch (e) {}
+    camaraActiva = false;
+    contenedor.style.display = "none";
+    btn.innerText = "📷 Escanear con cámara";
+    return;
+  }
+
+  // Iniciar cámara
+  contenedor.style.display = "block";
+  btn.innerText = "⏹ Detener cámara";
+  lectorCamara = new Html5Qrcode("lector-camara");
+
+  const config = {
+    fps: 10,
+    qrbox: { width: 220, height: 220 },
+    // Soporta QR y también los formatos de código de barras más comunes de productos
+    formatsToSupport: [
+      Html5QrcodeSupportedFormats.QR_CODE,
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.UPC_A,
+    ]
+  };
+
+  try {
+    await lectorCamara.start(
+      { facingMode: "environment" }, // usa la cámara trasera si es celular
+      config,
+      (codigoDetectado) => {
+        const ahora = Date.now();
+        // Evita agregar el mismo producto varias veces seguidas por el mismo frame
+        if (codigoDetectado === ultimoCodigoLeido && (ahora - ultimaLecturaTiempo) < 3000) return;
+        ultimoCodigoLeido = codigoDetectado;
+        ultimaLecturaTiempo = ahora;
+        procesarCodigoEscaneado(codigoDetectado);
+      },
+      (errorLectura) => { /* se dispara constantemente mientras no detecta nada, se ignora */ }
+    );
+    camaraActiva = true;
+  } catch (err) {
+    hablar("No se pudo activar la cámara. Revisa los permisos del navegador.");
+    contenedor.style.display = "none";
+    btn.innerText = "📷 Escanear con cámara";
+  }
+}
+
+async function cargarListaCarrito() {
+  const r = await fetch(`${API}/carrito/${carritoId}`);
+  const carrito = await r.json();
+  const cont = document.getElementById("listaCarrito");
+  cont.innerHTML = "";
+  carrito.items.forEach(item => {
+    const div = document.createElement("div");
+    div.className = "item-producto";
+    div.innerHTML = `<div><b>${item.nombre}</b><small>$${item.precio} · ${item.peso_kg} kg</small></div>
+      <button onclick="quitarProducto('${item.codigo}')">Quitar</button>`;
+    cont.appendChild(div);
+  });
+}
+
+async function quitarProducto(codigo) {
+  const r = await fetch(`${API}/carrito/quitar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ carrito_id: carritoId, codigo })
+  });
+  const data = await r.json();
+  actualizarCarritoUI(data);
+  hablar("Producto retirado del carrito.");
+  cargarListaCarrito();
+}
+
+function actualizarCarritoUI(data) {
+  ultimoTotal = data.total;
+  document.getElementById("totalCarrito").innerText = "$" + data.total;
+  document.getElementById("pesoInfo").innerText =
+    `Peso esperado: ${data.peso_esperado} kg | Peso celdas: ${data.peso_real_celdas} kg`;
+}
+
+function irAPago() {
+  document.getElementById("totalPago").innerText = "$" + ultimoTotal;
+  mostrarPantalla("pantalla-pago");
+}
+
+function volverACompra() {
+  mostrarPantalla("pantalla-compra");
+}
+
+async function pagar(metodo) {
+  const r = await fetch(`${API}/pago`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ carrito_id: carritoId, metodo })
+  });
+  const data = await r.json();
+  document.getElementById("codigoBoletaTexto").innerText = "Boleta: " + data.boleta_qr;
+  document.getElementById("qrcode").innerHTML = "";
+  new QRCode(document.getElementById("qrcode"), { text: data.boleta_qr, width: 140, height: 140 });
+  mostrarPantalla("pantalla-boleta");
+}
+
+function irASalida() {
+  document.getElementById("resultadoSalida").innerHTML = "";
+  mostrarPantalla("pantalla-salida");
+}
+const CODIGOS_DEMO = [
+  "7801234560012",
+  "7801234560029",
+  "7801234560067",
+];
+async function agregarProductoSinPagar() {
+  const codigoAlAzar = CODIGOS_DEMO[Math.floor(Math.random() * CODIGOS_DEMO.length)];
+  const r = await fetch(`${API}/carrito/escanear`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ carrito_id: carritoId, codigo: codigoAlAzar })
+  });
+  const data = await r.json();
+  document.getElementById("resultadoSalida").innerHTML =
+    `<div class="resultado-alerta">Se agregó "${data.producto.nombre}" al carro sin pasar por pago.<br>
+     Ahora presiona "Medir peso y validar" para ver la alerta.</div>`;
+  hablar(`Se agregó ${data.producto.nombre} sin pagar, para la demostración.`);
+}
+
+async function validarSalida() {
+  const r = await fetch(`${API}/salida/validar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ carrito_id: carritoId })
+  });
+  const data = await r.json();
+  const cont = document.getElementById("resultadoSalida");
+  if (data.autorizado) {
+    cont.innerHTML = `<div class="resultado-ok">✅ ${data.mensaje}<br>
+      Peso pagado: ${data.peso_pagado} kg<br>
+      Peso en salida: ${data.peso_real_salida} kg<br>
+      Diferencia: ${data.diferencia_kg} kg</div>`;
+    hablar("Peso validado. Puede salir.");
+  } else {
+    cont.innerHTML = `<div class="resultado-alerta">🚨 ${data.mensaje}<br>
+      Peso pagado: ${data.peso_pagado ?? "-"} kg<br>
+      Peso en salida: ${data.peso_real_salida ?? "-"} kg<br>
+      Diferencia: ${data.diferencia_kg ?? "-"} kg</div>`;
+    hablar("Alerta. Hay una diferencia de peso. Por favor diríjase a caja.");
+  }
+}
+
+function reiniciar() {
+  carritoId = null;
+  ultimoTotal = 0;
+  document.getElementById("estadoCarrito").innerText = "Sin iniciar";
+  document.getElementById("listaCarrito").innerHTML = "";
+  document.getElementById("resultadosBusqueda").innerHTML = "";
+  document.getElementById("totalCarrito").innerText = "$0";
+  document.getElementById("cajaVoz").innerText = "🔊 Indicaciones por voz aparecerán aquí.";
+  mostrarPantalla("pantalla-inicio");
+}
+</script>
+
+</body>
+</html>
