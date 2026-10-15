@@ -172,7 +172,7 @@
     <div class="lista-carrito" id="listaCarrito"></div>
 
     <div class="panel-total">
-      <div class="monto" id="totalCarrito">$0</div>
+      <div class="monto" id="totalCarrito">$0 CLP</div>
       <div class="panel-peso" id="pesoInfo">Peso esperado: 0.0 kg | Peso celdas: 0.0 kg</div>
     </div>
 
@@ -258,7 +258,7 @@ document.getElementById("buscador").addEventListener("input", async (e) => {
   productos.forEach(p => {
     const div = document.createElement("div");
     div.className = "item-producto";
-    div.innerHTML = `<div><b>${p.nombre}</b><small>$${p.precio.toLocaleString("es-CL")} ${p.pasillo}</small></div>
+    div.innerHTML = `<div><b>${p.nombre}</b><small>$${p.precio.toLocaleString("es-CL")} CLP - ${p.pasillo}</small></div>
       <button onclick="consultarYGuiar('${p.codigo}')">Ver</button>`;
     cont.appendChild(div);
   });
