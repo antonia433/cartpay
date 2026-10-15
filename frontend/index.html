@@ -267,7 +267,7 @@ document.getElementById("buscador").addEventListener("input", async (e) => {
 async function consultarYGuiar(codigo) {
   const r = await fetch(`${API}/productos/${codigo}`);
   const p = await r.json();
-  hablar('${p.npmbre} cuesta ${p.precio} pesos. Dirigete a ${p.pasillo}.');
+  hablar(p.nombre + " cuesta " + p.precio + "pesos. Dirigete a " + p.pasillo + ".");
   document.getElementById("codigoManual").value = codigo;
 }
 
@@ -290,7 +290,7 @@ async function procesarCodigoEscaneado(codigo) {
   }
   const data = await r.json();
   actualizarCarritoUI(data);
-  hablar(`${data.producto.nombre} agregado. Total: ${data.total} pesos.`);
+  hablar(data.producto.nombre + "agregado. total: " + data.total + "pesos.");
   document.getElementById("codigoManual").value = "";
   cargarListaCarrito();
 }
